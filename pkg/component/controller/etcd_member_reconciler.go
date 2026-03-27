@@ -40,7 +40,7 @@ const (
 
 var _ manager.Component = (*EtcdMemberReconciler)(nil)
 
-func NewEtcdMemberReconciler(kubeClientFactory kubeutil.ClientFactoryInterface, nodeName apitypes.NodeName, k0sVars *config.CfgVars, etcdConfig *v1beta1.EtcdConfig, leaderElector leaderelector.Interface, controllerCount func() uint, shutdown context.CancelCauseFunc) (*EtcdMemberReconciler, error) {
+func NewEtcdMemberReconciler(kubeClientFactory kubeutil.ClientFactoryInterface, nodeName apitypes.NodeName, k0sVars *config.CfgVars, etcdConfig *v1beta1.EtcdConfig, leaderElector leaderelector.Interface, controllerCount func() uint, shutdown context.CancelCauseFunc, stopAPIServer func()) (*EtcdMemberReconciler, error) {
 
 	return &EtcdMemberReconciler{
 		clientFactory:   kubeClientFactory,
@@ -50,6 +50,7 @@ func NewEtcdMemberReconciler(kubeClientFactory kubeutil.ClientFactoryInterface, 
 		leaderElector:   leaderElector,
 		controllerCount: controllerCount,
 		shutdown:        shutdown,
+		stopAPIServer:   stopAPIServer,
 	}, nil
 }
 
@@ -61,6 +62,7 @@ type EtcdMemberReconciler struct {
 	controllerCount func() uint
 	nodeName        apitypes.NodeName
 	shutdown        context.CancelCauseFunc
+	stopAPIServer   func()
 	stop            func()
 }
 
@@ -285,8 +287,8 @@ func (e *EtcdMemberReconciler) shutdownIfMarked(ctx context.Context, log logrus.
 		Until(ctx, func(*etcdv1beta1.EtcdMember) (bool, error) { return true, nil })
 
 	if err == nil {
-		log.Info("Etcd member marked for shutdown; stopping components and waiting for external termination")
-		e.shutdown(errors.New("etcd member marked for shutdown"))
+		log.Info("Etcd member marked for leave; stopping kube-apiserver (keeping etcd alive for quorum)")
+		e.stopAPIServer()
 	} else if ctxErr := context.Cause(ctx); !errors.Is(err, ctxErr) {
 		log.WithError(err).Error("Error watching etcd member object")
 	}

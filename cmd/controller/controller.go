@@ -297,7 +297,7 @@ func (c *command) start(ctx context.Context, flags *config.ControllerOptions, de
 		})
 	}
 
-	nodeComponents.Add(ctx, &controller.APIServer{
+	apiServer := &controller.APIServer{
 		ClusterConfig:      nodeConfig,
 		K0sVars:            c.K0sVars,
 		LogLevel:           c.LogLevels.KubeAPIServer,
@@ -306,7 +306,8 @@ func (c *command) start(ctx context.Context, flags *config.ControllerOptions, de
 
 		// If k0s reconciles the kubernetes endpoint, the API server shouldn't do it.
 		DisableEndpointReconciler: enableK0sEndpointReconciler,
-	})
+	}
+	nodeComponents.Add(ctx, apiServer)
 
 	nodeName, kubeletExtraArgs, err := workercmd.GetNodeName(&c.WorkerOptions)
 	if err != nil {
@@ -589,6 +590,7 @@ func (c *command) start(ctx context.Context, flags *config.ControllerOptions, de
 				return num
 			},
 			cancel,
+			func() { apiServer.Stop() },
 		)
 		if err != nil {
 			return err
